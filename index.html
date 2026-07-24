@@ -45,9 +45,10 @@
     </main>
 
     <script>
-        const _key = "c2stb3ItdjEtNTNmMDE1ZDI4M2IzNGMwM2IwMWRhYzg5NDllMmFmM2VmYzQxYTlkYzQ5NjY0M2JmZWQ0ODMxOWVhZjQyOWRiOA==";
+        // Configured with your provided OpenRouter key and Poolside Laguna XS 2.1 model
+        const _key = "c2stb3ItdjEtZjI2YWEwYTc0Y2Y5ZDc1ZjIwZTk0ZjMwMGNhYTYxZjUzYTYxZGFlYzFjZDk4Y2Q2Y2E4MWMwYTRmOWE4ZTI1OQ==";
         const API_KEY = atob(_key);
-        const MODEL = "tencent/hy3:free";
+        const MODEL = "poolside/laguna-xs-2.1:free";
         let chats = JSON.parse(localStorage.getItem('chats') || '[]');
         let activeId = chats.length > 0 ? chats[0].id : null;
         let isThinking = false;
@@ -80,14 +81,39 @@
             const input = document.getElementById('chat-input');
             const text = input.value.trim(); if(!text) return;
             const chat = chats.find(c => c.id === activeId);
+            
+            if (chat.title === 'New Chat') {
+                chat.title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+            }
+
             chat.messages.push({ role: 'user', content: text });
             input.value = ''; isThinking = true; render();
+            
+            const viewport = document.getElementById('chat-viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+
             try {
-                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST', headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: MODEL, messages: [...chat.messages] }) });
+                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', { 
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ model: MODEL, messages: chat.messages.map(m => ({ role: m.role, content: m.content })) }) 
+                });
                 const data = await res.json();
-                chat.messages.push({ role: 'assistant', content: data.choices[0].message.content });
-            } catch(e) { chat.messages.push({ role: 'assistant', content: "Error connecting to AI." }); }
-            isThinking = false; save();
+                
+                if (data.choices && data.choices.length > 0) {
+                    chat.messages.push({ role: 'assistant', content: data.choices[0].message.content });
+                } else if (data.error) {
+                    chat.messages.push({ role: 'assistant', content: "Error: " + (data.error.message || "Unknown error from API.") });
+                } else {
+                    chat.messages.push({ role: 'assistant', content: "Received an empty response from the AI." });
+                }
+            } catch(e) { 
+                chat.messages.push({ role: 'assistant', content: "Error connecting to AI. Please check your network connection." }); 
+            }
+            
+            isThinking = false; 
+            save();
+            viewport.scrollTop = viewport.scrollHeight;
         }
 
         document.getElementById('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
