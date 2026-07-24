@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abhi's CodeZ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background-color: #131314; color: #e3e3e3; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        .blue-text { color: #3b82f6; }
+        .sidebar { transition: transform 0.3s ease-in-out; position: absolute; z-index: 100; height: 100%; box-shadow: 4px 0 15px rgba(0,0,0,0.5); background: #1e1f20; }
+        .hidden-sidebar { transform: translateX(-100%); }
+        @media (min-width: 768px) { .sidebar { position: relative; transform: translateX(0) !important; } .menu-btn { display: none; } }
+        .prose pre { background-color: #1e1f20; padding: 1rem; border-radius: 0.75rem; border: 1px solid #444746; margin: 1rem 0; overflow-x: auto; position: relative; }
+        .copy-btn { position: absolute; top: 8px; right: 8px; background: #374151; color: #e3e3e3; font-size: 12px; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #4b5563; }
+        .dot { width: 8px; height: 8px; background: #3b82f6; border-radius: 50%; display: inline-block; animation: bounce 1.4s infinite; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    </style>
+</head>
+<body class="h-screen w-full flex overflow-hidden">
+    <aside id="sidebar" class="sidebar hidden-sidebar w-[280px] p-4 flex flex-col border-r border-gray-800">
+        <div class="flex justify-between items-center mb-6 px-2">
+            <h1 class="text-xl font-bold">Abhi's <span class="blue-text">CodeZ</span></h1>
+            <button onclick="toggleSidebar()" class="md:hidden p-2">✕</button>
+        </div>
+        <button onclick="createNewChat()" class="p-3 rounded-xl bg-blue-900/10 hover:bg-blue-900/30 border border-blue-500/50 w-full font-medium transition">+ New chat</button>
+        <div id="history-list" class="flex-1 overflow-y-auto mt-6 space-y-2 pr-2"></div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full bg-[#131314] relative">
+        <header class="p-4 flex items-center shrink-0">
+            <button onclick="toggleSidebar()" class="p-2 mr-4 hover:bg-gray-800 rounded-lg transition z-[60]">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <span class="font-semibold text-lg md:hidden">Abhi's CodeZ</span>
+        </header>
+        <div id="chat-viewport" class="flex-1 overflow-y-auto p-6"><div id="message-container" class="max-w-3xl mx-auto space-y-8"></div></div>
+        <div class="w-full px-4 pb-6 bg-[#131314]">
+            <div class="max-w-3xl mx-auto bg-[#1e1f20] rounded-[24px] px-6 py-4 flex items-end border border-gray-700">
+                <textarea id="chat-input" rows="1" class="w-full bg-transparent py-2 focus:outline-none resize-none max-h-32" placeholder="Ask about code..."></textarea>
+                <button onclick="handleSend()" class="p-2 text-blue-400 hover:text-blue-300 transition-colors"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Configured with your provided OpenRouter key and Poolside Laguna XS 2.1 model
+        const _key = "c2stb3ItdjEtZjI2YWEwYTc0Y2Y5ZDc1ZjIwZTk0ZjMwMGNhYTYxZjUzYTYxZGFlYzFjZDk4Y2Q2Y2E4MWMwYTRmOWE4ZTI1OQ==";
+        const API_KEY = atob(_key);
+        const MODEL = "poolside/laguna-xs-2.1:free";
+        let chats = JSON.parse(localStorage.getItem('chats') || '[]');
+        let activeId = chats.length > 0 ? chats[0].id : null;
+        let isThinking = false;
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden-sidebar'); }
+        function closeSidebar() { if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('hidden-sidebar'); }
+        
+        function createNewChat() {
+            const id = 'chat_' + Date.now();
+            chats.unshift({ id: id, title: 'New Chat', messages: [{ role: 'assistant', content: "Welcome! How can I help you with your code?" }] });
+            activeId = id; save(); closeSidebar();
+        }
+
+        function save() { localStorage.setItem('chats', JSON.stringify(chats)); render(); }
+        function deleteChat(e, id) { e.stopPropagation(); chats = chats.filter(c => c.id !== id); if(chats.length===0) createNewChat(); else if(activeId===id) activeId=chats[0].id; save(); }
+
+        function addCopyButtons() { document.querySelectorAll('pre').forEach(pre => { if(pre.querySelector('.copy-btn')) return; const b = document.createElement('button'); b.className = 'copy-btn'; b.innerText = 'Copy'; b.onclick = () => { navigator.clipboard.writeText(pre.innerText.replace('Copy', '')); b.innerText='Copied!'; setTimeout(()=>b.innerText='Copy', 2000); }; pre.appendChild(b); }); }
+
+        function render() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = chats.map(c => `<div onclick="activeId='${c.id}'; render(); closeSidebar();" class="group flex justify-between items-center p-3 cursor-pointer ${activeId === c.id ? 'bg-[#252526]' : 'hover:bg-[#252526]'} rounded-lg text-sm text-gray-300"><span class="truncate flex-1">${c.title}</span><button onclick="deleteChat(event, '${c.id}')" class="opacity-0 group-hover:opacity-100 text-red-400">✕</button></div>`).join('');
+            const container = document.getElementById('message-container');
+            const chat = chats.find(c => c.id === activeId);
+            if(chat) container.innerHTML = chat.messages.map(m => `<div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}"><div class="${m.role === 'user' ? 'bg-blue-600/80 px-5 py-3 rounded-2xl max-w-[80%]' : 'prose prose-invert max-w-full w-full'}">${marked.parse(m.content)}</div></div>`).join('');
+            if(isThinking) container.innerHTML += `<div class="flex justify-start"><div class="bg-[#1e1f20] px-4 py-3 rounded-2xl"><div class="dot"></div><div class="dot mx-1"></div><div class="dot"></div></div></div>`;
+            addCopyButtons();
+        }
+
+        async function handleSend() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim(); if(!text) return;
+            const chat = chats.find(c => c.id === activeId);
+            
+            if (chat.title === 'New Chat') {
+                chat.title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+            }
+
+            chat.messages.push({ role: 'user', content: text });
+            input.value = ''; isThinking = true; render();
+            
+            const viewport = document.getElementById('chat-viewport');
+            viewport.scrollTop = viewport.scrollHeight;
+
+            try {
+                const res = await fetch('https://openrouter.ai/api/v1/chat/completions', { 
+                    method: 'POST', 
+                    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ model: MODEL, messages: chat.messages.map(m => ({ role: m.role, content: m.content })) }) 
+                });
+                const data = await res.json();
+                
+                if (data.choices && data.choices.length > 0) {
+                    chat.messages.push({ role: 'assistant', content: data.choices[0].message.content });
+                } else if (data.error) {
+                    chat.messages.push({ role: 'assistant', content: "Error: " + (data.error.message || "Unknown error from API.") });
+                } else {
+                    chat.messages.push({ role: 'assistant', content: "Received an empty response from the AI." });
+                }
+            } catch(e) { 
+                chat.messages.push({ role: 'assistant', content: "Error connecting to AI. Please check your network connection." }); 
+            }
+            
+            isThinking = false; 
+            save();
+            viewport.scrollTop = viewport.scrollHeight;
+        }
+
+        document.getElementById('chat-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+        if (chats.length === 0) createNewChat(); else render();
+    </script>
+</body>
+</html>
